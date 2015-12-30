@@ -8,10 +8,7 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.apache.http.HttpEntity
 import org.apache.http.HttpResponse
 import org.apache.http.client.entity.UrlEncodedFormEntity
-import org.apache.http.client.methods.HttpEntityEnclosingRequestBase
-import org.apache.http.client.methods.HttpGet
-import org.apache.http.client.methods.HttpPost
-import org.apache.http.client.methods.HttpUriRequest
+import org.apache.http.client.methods.*
 import org.apache.http.entity.ContentType
 import org.apache.http.entity.StringEntity
 import org.apache.http.impl.client.HttpClients
@@ -32,6 +29,9 @@ private val defaultMapper = jacksonObjectMapper().apply {
 class KResponse<T>(val type: Type, val response: HttpResponse) {
     var jsonMapper: ObjectMapper = defaultMapper
 
+    /**
+     * Get the body of the response, parsed as the type passed as the response class.
+     */
     @Suppress("UNCHECKED_CAST")
     val body: T by lazy {
         val contentType = ContentType.get(response.entity).mimeType
@@ -48,6 +48,21 @@ class KResponse<T>(val type: Type, val response: HttpResponse) {
     val code: Int get() {
         return response.statusLine.statusCode
     }
+
+    /**
+     * Get a header value
+     */
+    fun header(key: String): String? {
+        return response.getFirstHeader(key)?.value
+    }
+
+    /**
+     * Get all headers as a pair of keys and values
+     */
+    val headers: List<Pair<String, String>>
+        get() {
+            return response.allHeaders.map { Pair(it.name, it.value) }
+        }
 }
 
 abstract class KRequest<T: HttpUriRequest>(val request: T) {
@@ -55,10 +70,23 @@ abstract class KRequest<T: HttpUriRequest>(val request: T) {
 
     inline fun <reified T: Any> response(): KResponse<T> = response<T>(fullType<T>().type)
 
+    /**
+     * Execute a request and get a response with an expected type
+     */
     open fun <T> response(type: Type): KResponse<T> {
         return KResponse<T>(type, client.execute(request))
     }
 
+    /**
+     * Execute a request, without defining a specific return type
+     */
+    fun execute(): KResponse<Any> {
+        return KResponse(Any::class.java, client.execute(request))
+    }
+
+    /**
+     * Add a header to the request
+     */
     fun header(key: String, value: String) {
         request.addHeader(key, value)
     }
@@ -107,6 +135,10 @@ class KPostRequest(uri: URI): KBodyRequest<HttpPost>(HttpPost(uri)) {
     }
 }
 
+class KPutRequest(uri: URI): KBodyRequest<HttpPut>(HttpPut(uri)) {
+
+}
+
 /**
  * Prepare a REST GET request
  */
@@ -125,4 +157,20 @@ fun URI.post(init: (KPostRequest.() -> Unit)? = null): KPostRequest {
     val result = KPostRequest(this)
     if (init != null) result.init()
     return result
+}
+
+/**
+ * Prepare a REST PUT request
+ */
+fun URI.put(init: (KPutRequest.() -> Unit)? = null): KPutRequest {
+    val result = KPutRequest(this)
+    if (init != null) result.init()
+    return result
+}
+
+fun main(args: Array<String>) {
+    data class PersonInfo(val name: String, val address: String)
+    URI("https://www.someservice.com").get {
+        header("X-Client", "KREST")
+    }.response<PersonInfo>()
 }
