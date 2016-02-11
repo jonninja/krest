@@ -1,18 +1,22 @@
 group 'com.steamstreet'
-version '1.0-SNAPSHOT'
+version '0.1.2'
 
 buildscript {
-    ext.kotlin_version = "1.0.0-beta-1038"
+    ext.kotlin_version = "1.0.0-rc-1036"
     repositories {
         mavenCentral()
+        jcenter()
     }
     dependencies {
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+        classpath "org.jetbrains.dokka:dokka-gradle-plugin:0.9.6"
     }
 }
 
 apply plugin: 'kotlin'
-apply plugin: 'maven-publish'
+apply plugin: 'maven'
+apply plugin: 'signing'
+apply plugin: 'org.jetbrains.dokka'
 
 repositories {
     mavenCentral()
@@ -27,24 +31,75 @@ repositories {
 }
 
 dependencies {
-    compile 'com.fasterxml.jackson.module:jackson-module-kotlin:2.6.3-4'
-    compile "uy.kohesive.injekt:injekt-core:1.8.+"
+    compile 'com.fasterxml.jackson.module:jackson-module-kotlin:2.7.1'
+    compile "uy.kohesive.injekt:injekt-core:1.12.0-RC-1036"
     compile "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
     runtime "org.jetbrains.kotlin:kotlin-reflect:$kotlin_version"
     compile "org.apache.httpcomponents:httpclient:4.5.1"
     testCompile group: 'junit', name: 'junit', version: '4.11'
 }
 
-task sourceJar(type: Jar) {
+task sourcesJar(type: Jar) {
     from sourceSets.main.allJava
     classifier "sources"
 }
 
-publishing {
-    publications {
-        mavenJava(MavenPublication) {
-            from components.java
-            artifact sourceJar
+task javadocJar(type: Jar) {
+    classifier = 'javadoc'
+    from javadoc
+}
+
+artifacts {
+    archives javadocJar,sourcesJar
+}
+
+signing {
+    sign configurations.archives
+}
+
+uploadArchives {
+    repositories {
+        mavenDeployer {
+            beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+
+            repository(url: "https://oss.sonatype.org/service/local/staging/deploy/maven2/") {
+                authentication(userName: ossrhUsername, password: ossrhPassword)
+            }
+
+            snapshotRepository(url: "https://oss.sonatype.org/content/repositories/snapshots/") {
+                authentication(userName: ossrhUsername, password: ossrhPassword)
+            }
+
+            pom.project {
+                name 'krest'
+                packaging 'jar'
+                // optionally artifactId can be defined here
+                description "A small, simple REST client for Kotlin"
+                url 'https://github.com/jonninja/krest'
+
+
+                scm {
+                    connection 'scm:git:https://github.com/jonninja/krest'
+                    developerConnection 'scm:git:https://github.com/jonninja/krest'
+                    url 'https://github.com/jonninja/krest'
+                }
+
+                licenses {
+                    license {
+                        name 'The MIT License (MIT)'
+                        url 'https://opensource.org/licenses/MIT'
+                    }
+                }
+
+                developers {
+                    developer {
+                        id 'jonninja'
+                        name 'Jon Nichols'
+                        email 'jnichols@steamstreet.com'
+                        organization 'SteamStreet'
+                    }
+                }
+            }
         }
     }
 }

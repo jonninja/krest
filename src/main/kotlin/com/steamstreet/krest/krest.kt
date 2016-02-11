@@ -18,6 +18,7 @@ import uy.kohesive.injekt.api.fullType
 import java.lang.reflect.Type
 import java.net.URI
 import java.util.*
+import kotlin.collections.map
 
 private val defaultHttpClient = HttpClients.createDefault()
 private val defaultMapper = jacksonObjectMapper().apply {
@@ -36,7 +37,7 @@ class KResponse<T>(val type: Type, val response: HttpResponse) {
     val body: T by lazy {
         val contentType = ContentType.get(response.entity).mimeType
         if (contentType == "application/json") {
-            defaultMapper.readValue(response.entity.content, type.erasedType() as Class<*>) as T
+            jsonMapper.readValue(response.entity.content, type.erasedType() as Class<*>) as T
         } else {
             throw IllegalStateException()
         }
@@ -52,7 +53,7 @@ class KResponse<T>(val type: Type, val response: HttpResponse) {
     /**
      * Get a header value
      */
-    fun header(key: String): String? {
+    public fun header(key: String): String? {
         return response.getFirstHeader(key)?.value
     }
 
