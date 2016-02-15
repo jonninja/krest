@@ -15,6 +15,7 @@ import org.apache.http.impl.client.HttpClients
 import org.apache.http.message.BasicNameValuePair
 import uy.kohesive.injekt.api.erasedType
 import uy.kohesive.injekt.api.fullType
+import java.io.InputStream
 import java.lang.reflect.Type
 import java.net.URI
 import java.util.*
@@ -29,13 +30,14 @@ private val defaultMapper = jacksonObjectMapper().apply {
 
 class KResponse<T>(val type: Type, val response: HttpResponse) {
     var jsonMapper: ObjectMapper = defaultMapper
+    var contentType: String? = null
 
     /**
      * Get the body of the response, parsed as the type passed as the response class.
      */
     @Suppress("UNCHECKED_CAST")
     val body: T by lazy {
-        val contentType = ContentType.get(response.entity).mimeType
+        val contentType = this.contentType ?: ContentType.get(response.entity)?.mimeType
         if (contentType == "application/json") {
             jsonMapper.readValue(response.entity.content, type.erasedType() as Class<*>) as T
         } else {
@@ -44,10 +46,25 @@ class KResponse<T>(val type: Type, val response: HttpResponse) {
     }
 
     /**
+     * Get the raw body input stream
+     */
+    val rawBody: InputStream by lazy {
+        response.entity.content
+    }
+
+    /**
      * The status code of the response
      */
     val code: Int get() {
         return response.statusLine.statusCode
+    }
+
+    /**
+     * Allows us to ignore the content type coming from the server and assume that the content is of a given type
+     */
+    fun assumeContentType(type: String): KResponse<T> {
+        contentType = type
+        return this
     }
 
     /**
